@@ -106,9 +106,9 @@ head(DiseaseMap)
 Consolidating the 3 ICD10 codes:
 ```{r}
 
-long_dis <- melt(op_visit[,.(PatientID, ICD10_1, ICD10_2, ICD10_3)], id.vars = c("PatientID"))
+long_dis <- unique(melt(op_visit[,.(PatientID, ICD10_1, ICD10_2, ICD10_3)], id.vars = c("PatientID"))[,.(PatientID, value)])
 
-long_dis <- DiseaseMap[long_dis, on = .(ICD10 = value)][patient, on = .(PatientID = PatientID)][,.(Condition, PatientID, Gender)]
+long_dis <- DiseaseMap[long_dis, on = .(ICD10 = value)][patient, on = .(PatientID = PatientID)][,.(Condition, PatientID, Gender)][!is.na(Condition),]
 
 long_dis <- long_dis[,.(Gender = ifelse(!Gender %in% c("female", "male"), "missing", Gender),.N), by = .(Gender, Condition)][,2:4]
 
@@ -123,14 +123,21 @@ That gets the total counts, but I need to turn those into column-wise proportion
 ```{r}
 
 # Get totals
-final_dis[,.(female_total = sum(female),
-             male_total = sum(male),
-             missing_total = sum(missing),
-             all_total = sum(all))]
+patient[,.N, by = Gender]
 
 ```
 
-This isn't right. The denominator needs to be the total number of male/female patients. Will need to redo.
+Getting the first table into a proportion format for the question.
+
+```{r}
+
+final_dis[,.(Condition,
+             female = round(female/9504,2),
+             male = round(male/8927,2),
+             all = round(all/20000,2))]
+
+```
+
 
 # Question 3
 
