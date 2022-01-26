@@ -1,0 +1,144 @@
+---
+title: "HDS 5230 High Performance Computing"
+subtitle: "Week 2 Assignment"
+output: html_notebook
+---
+
+# Libraries
+
+```{r}
+
+library(here)
+library(data.table)
+library(tidyverse)
+library(tictoc)
+
+```
+
+# Data Loading
+
+Including some extra code to highlight the speed of fread.
+
+```{r}
+
+tic()
+op_visit <- fread("OutpatientVisit.csv")
+patient <- fread("Patient.csv")
+clinic <- fread("Clinic.csv")
+staff <- fread("Staff.csv")
+mortality <- fread("Mortality.csv")
+ICDCodes <- fread("ICDCodes.csv")
+DiseaseMap <- fread("DiseaseMap.csv")
+toc()
+
+tic()
+slow <- read_csv("OutpatientVisit.csv", show_col_types = FALSE)
+slow2 <- read_csv("Patient.csv", show_col_types = FALSE)
+slow3 <- read_csv("Clinic.csv", show_col_types = FALSE)
+slow4 <- read_csv("Staff.csv", show_col_types = FALSE)
+slow5 <- read_csv("Mortality.csv", show_col_types = FALSE)
+slow6 <- read_csv("ICDCodes.csv", show_col_types = FALSE)
+slow7 <- read_csv("DiseaseMap.csv", show_col_types = FALSE)
+toc()
+
+rm(slow)
+rm(slow2)
+rm(slow3)
+rm(slow4)
+rm(slow5)
+rm(slow6)
+rm(slow7)
+
+```
+Quite an enhancement.
+
+# Question 1
+
+1. Are men more likely to die than women in this group of patients? Assume people without a date of death in the mortality table are still alive.
+
+Exploration:
+```{r}
+
+head(patient)
+head(mortality)
+
+```
+First, I will need to set the keys for each of those two data tables, then I can join them more efficiently.
+
+```{r}
+
+# Set Keys
+setkey(patient, PatientID)
+setkey(mortality, PatientID)
+
+# Left join on patient
+patient_2 <- mortality[patient, on = list(PatientID)]
+
+# Create a death flag, group by gender, perform some mutations and summarizations
+patient_2[,death_flag := ifelse(is.na(as.character(DateOfDeath)),0,1)][,
+                                                                       .(death_count = sum(death_flag),
+                                                                         total_lives = .N),
+                                                                       by = .(Gender)][,.(Gender,
+                                                                                          death_count,
+                                                                                          total_lives,
+                                                                                          perc = death_count / total_lives)]
+
+
+```
+
+That code is a bit ugly but it does the job. We see that men are, in fact, more likely to die than women but only very slightly. Men exhibit a death rate of 35.9% whereas women 35.1%
+
+A significant number (1569) records were not labeled with a gender and so were excluded from the calculation.
+
+# Question 2
+
+Are patterns in the disease groups across gender? For every patient with at least one outpatient visit, identify if they have been diagnosed with any of the 22 conditions listed in the DiseaseMap table at any point in time. You will need to consider all three ICD columns in the OutpatientVisit file. Create a table with the rate of disease for each condition for men, women, and all.
+
+What do the data look like:
+```{r}
+
+head(op_visit)
+head(DiseaseMap)
+
+
+```
+
+Consolidating the 3 ICD10 codes:
+```{r}
+
+long_dis <- melt(op_visit[,.(PatientID, ICD10_1, ICD10_2, ICD10_3)], id.vars = c("PatientID"))
+
+long_dis <- DiseaseMap[long_dis, on = .(ICD10 = value)][patient, on = .(PatientID = PatientID)][,.(Condition, PatientID, Gender)]
+
+long_dis <- long_dis[,.(Gender = ifelse(!Gender %in% c("female", "male"), "missing", Gender),.N), by = .(Gender, Condition)][,2:4]
+
+final_dis <- dcast(long_dis[,.(s = sum(N)), by = .(Condition, Gender)], Condition ~ Gender)[,.(Condition, female, male, missing, all = female+male+missing)]
+
+final_dis
+
+```
+
+That gets the total counts, but I need to turn those into column-wise proportions.
+
+```{r}
+
+# Get totals
+final_dis[,.(female_total = sum(female),
+             male_total = sum(male),
+             missing_total = sum(missing),
+             all_total = sum(all))]
+
+```
+
+This isn't right. The denominator needs to be the total number of male/female patients. Will need to redo.
+
+# Question 3
+
+Calculate the mortality rate for every year between 2005 and 2018. Is it generally increasing or decreasing? Assume patients are only at risk of death as of their first visit (in the OutpatientVisit file). Once they have died, they are no longer at risk in subsequent years.
+
+```{r}
+
+
+
+```
+
