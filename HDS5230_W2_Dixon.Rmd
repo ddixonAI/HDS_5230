@@ -143,9 +143,56 @@ final_dis[,.(Condition,
 
 Calculate the mortality rate for every year between 2005 and 2018. Is it generally increasing or decreasing? Assume patients are only at risk of death as of their first visit (in the OutpatientVisit file). Once they have died, they are no longer at risk in subsequent years.
 
+First I'll need to get each patients first visit date so I know when to begin factoring them into the denominator.
+
 ```{r}
 
+head(op_visit)
 
+first_dates <- op_visit[,VisitDate := min(VisitDate), by = PatientID][, .SD[1], by = PatientID][,.(PatientID, first_date)]
+
+```
+
+Now we join to mortality to get the date of death. I'll also extract only the years.
+
+```{r}
+
+# Left join on first_dates
+deaths <- mortality[first_dates, on = .(PatientID)][,`:=`(DateOfDeath = year(DateOfDeath), first_date = year(first_date))]
+
+head(deaths)
+
+```
+
+All in one:
+
+```{r}
+
+dates <- c(seq(2005, 2018, 1))
+perc <- c()
+
+for(d in dates){
+  
+  value <- nrow(deaths[first_date <= d & DateOfDeath == d]) / nrow(deaths[first_date <= d])
+  
+  perc <- append(perc, c(value))
+  
+  print(paste0(d, ": ", value))
+}
+
+# Plot
+data.table(
+  year = dates,
+  mortality_rate = perc
+  ) %>% 
+  ggplot(aes(x = year, y = mortality_rate)) +
+  geom_line() +
+  scale_x_continuous(breaks = dates) +
+  labs(
+    title = "Mortality Rate By Year",
+    y = "Mortality Rate",
+    x = "Year"
+  )
 
 ```
 
