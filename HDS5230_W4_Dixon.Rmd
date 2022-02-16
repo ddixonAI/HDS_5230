@@ -1,0 +1,141 @@
+---
+title: "HDS 5230 High Performance Computing"
+subtitle: 'Week 4 Assignment'
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+Packages
+
+```{r}
+
+library(tictoc)
+library(tidyverse)
+library(here)
+library(REdaS) # for the degtorad function
+library(foreach)
+
+```
+
+Read in the data
+
+```{r}
+
+df <- read_delim(here("clinics.csv"), delim = "|")
+
+```
+
+Defining the functions
+
+```{r}
+
+haversine <- function(lat1, lon1, lat2, lon2){
+  
+  miles <- 3959
+  lat1 <- REdaS::deg2rad(lat1)
+  lon1 <- REdaS::deg2rad(lon1)
+  lat2 <- REdaS::deg2rad(lat2)
+  lon2 <- REdaS::deg2rad(lon2)
+  
+  dlat <- lat2 - lat1
+  dlon <- lon2 - lon1
+  
+  a <- sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+  c <- 2 * asin(sqrt(a))
+  total_miles <- miles * c
+  
+  return(total_miles$locLat)
+  
+}
+
+
+haversine_vec <- function(lat1, lon1, lat2, lon2){
+  
+  miles <- 3959
+  lat1 <- REdaS::deg2rad(lat1)
+  lon1 <- REdaS::deg2rad(lon1)
+  lat2 <- REdaS::deg2rad(lat2)
+  lon2 <- REdaS::deg2rad(lon2)
+  
+  dlat <- lat2 - lat1
+  dlon <- lon2 - lon1
+  
+  a <- sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+  c <- 2 * asin(sqrt(a))
+  total_miles <- miles * c
+  
+  return(total_miles)
+  
+}
+
+```
+
+Looping
+
+```{r}
+
+options(digits.secs = 6)
+
+start.time <- Sys.time()
+
+haversine_loop <- function(df){
+  
+  dist_vector <- c()
+  
+  for(i in seq(1, nrow(df), 1)){
+    
+    d <- haversine(40.671, -73.985, df[i, 'locLat'], df[i, 'locLong'])
+    dist_vector = append(dist_vector, d)
+    
+  }
+  
+  return(dist_vector)
+  
+}
+
+cbind(df, as.data.frame(haversine_loop(df)))
+
+end.time <- Sys.time()
+
+cat(paste(round((end.time - start.time)*1000,2), " ms elapsed"))
+
+```
+
+Passing it in directly via mutate()
+
+```{r}
+
+options(digits.secs = 6)
+
+start.time <- Sys.time()
+
+df %>% 
+  mutate(haver = haversine_vec(40.671, -73.985, locLat, locLong))
+
+end.time <- Sys.time()
+
+cat(paste(round((end.time - start.time)*1000,2), " ms elapsed"))
+
+
+```
+
+About 4x as fast!
+
+What if we just pass the vectors in directly?
+
+```{r}
+
+options(digits.secs = 6)
+
+start.time <- Sys.time()
+
+haversine_vec(40.671, -73.985, df$locLat, df$locLong)
+
+end.time <- Sys.time()
+
+cat(paste(round((end.time - start.time)*1000,2), " ms elapsed"))
+
+```
+Very close to the mutate method.
+
